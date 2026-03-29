@@ -2,10 +2,14 @@ import numpy as np
 import trimesh
 import heapq
 import time
+from pathlib import Path
 import matplotlib.pyplot as plt
 from collections import deque
 from scipy.interpolate import griddata
 from matplotlib.colors import LightSource
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+DATA_DIR = ROOT_DIR / "data"
 
 # =================================================================
 # 1. LUNAR ROVER ENVIRONMENT
@@ -102,7 +106,7 @@ def a_star_3d(env, start_idx, end_idx, max_slope=40.0, max_iter=2000000):
 # 3. ANA ÇALIŞTIRMA & 2D/3D HARİTALAMA
 # =================================================================
 try:
-    glb_dosyasi = "Moon_NASA_LRO_8k_Topo.glb"
+    glb_dosyasi = str(ROOT_DIR / "Moon_NASA_LRO_8k_Topo.glb")
     env = LunarRoverEnv(glb_dosyasi)
 
     valid_starts = np.where(env.slopes < 10.0)[0]
@@ -134,8 +138,8 @@ try:
         print(f"\n🚀 [BİLGİ] Global A* Mesafesi: {total_distance_km:.1f} km")
 
         # Save the parameters to disk
-        np.save("path_coords.npy", path_coords)
-        np.save("scale_factor.npy", np.array(scale_factor))
+        np.save(DATA_DIR / "path_coords.npy", path_coords)
+        np.save(DATA_DIR / "scale_factor.npy", np.array(scale_factor))
         print("\n[OK] path_coords ve scale_factor dizine kaydedildi.")
 
         # =================================================================

@@ -1,8 +1,11 @@
 import json
 import numpy as np
+from pathlib import Path
 
-NPZ_PATH = "single_sample.npz"
-OUT_JSON = "heightmap.json"
+ROOT_DIR = Path(__file__).resolve().parents[2]
+DATA_DIR = ROOT_DIR / "data"
+NPZ_PATH = DATA_DIR / "single_sample.npz"
+OUT_JSON = DATA_DIR / "heightmap.json"
 
 data = np.load(NPZ_PATH)
 target = data["target"].astype(np.float32)

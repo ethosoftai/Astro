@@ -304,8 +304,8 @@
         async function loadData() {
             try {
                 const [roverData, hmData] = await Promise.all([
-                    loadJsonOrThrow("rover_episode_data.json"),
-                    loadJsonOrThrow("heightmap.json")
+                    loadJsonOrThrow("../../data/rover_episode_data.json"),
+                    loadJsonOrThrow("../../data/heightmap.json")
                 ]);
 
                 if (!roverData || !Array.isArray(roverData.path) || roverData.path.length < 2) {

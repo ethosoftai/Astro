@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import webbrowser
+from pathlib import Path
 
 import gymnasium as gym
 import matplotlib
@@ -22,6 +23,12 @@ except ImportError:
     print("[UYARI] Tkinter bulunamadı. Grafikler ekranda gösterilmek yerine .png olarak kaydedilecek.")
 
 import matplotlib.pyplot as plt
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+DATA_DIR = ROOT_DIR / "data"
+MODELS_DIR = ROOT_DIR / "models"
+LOGS_DIR = ROOT_DIR / "logs" / "sac_rover_tensorboard"
+WEB_DIR = ROOT_DIR / "src" / "web"
 
 
 class LunarRoverLocalEnv(gym.Env):
@@ -435,19 +442,19 @@ class LunarRoverLocalEnv(gym.Env):
                 "hazards": self.hazards_np.tolist() if len(self.hazards_np) > 0 else [],
                 "trajectory": [p.tolist() for p in self.history],
             }
-            fd, tmp_path = tempfile.mkstemp(prefix="rover_episode_data_", suffix=".json", dir=".")
+            fd, tmp_path = tempfile.mkstemp(prefix="rover_episode_data_", suffix=".json", dir=str(DATA_DIR))
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(render_data, f)
                     f.flush()
                     os.fsync(f.fileno())
-                os.replace(tmp_path, "rover_episode_data.json")
+                os.replace(tmp_path, DATA_DIR / "rover_episode_data.json")
             except Exception:
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
                 raise
 
-            viewer_path = os.path.abspath("rover_viewer.html")
+            viewer_path = str((WEB_DIR / "rover_viewer.html").resolve())
             print(f"[3D] 3D Görev İzleyici Hazır: {viewer_path}")
             # webbrowser.open(f"file://{viewer_path}")
         except Exception as e:
@@ -476,20 +483,23 @@ def train_first_6_waypoints(path_coords, scale_factor, total_timesteps=350000):
     raw_env = LunarRoverLocalEnv(path_subset, scale_factor)
     vec_env = DummyVecEnv([lambda: raw_env])
 
-    if os.path.exists("vec_normalize.pkl"):
+    vec_norm_path = MODELS_DIR / "vec_normalize.pkl"
+    model_path = MODELS_DIR / "sac_rover.zip"
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if os.path.exists(vec_norm_path):
         print("[YÜKLENİYOR] VecNormalize ayarları bulundu. Yükleniyor...")
-        env = VecNormalize.load("vec_normalize.pkl", vec_env)
+        env = VecNormalize.load(str(vec_norm_path), vec_env)
         env.training = True
         env.norm_reward = True
     else:
         env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
 
-    model_path = "sac_rover.zip"
-    tensorboard_dir = "./sac_rover_tensorboard/"
+    tensorboard_dir = str(LOGS_DIR)
 
     if os.path.exists(model_path):
         print("[YÜKLENİYOR] Önceki model bulundu. Eğitim kaldığı yerden devam ediyor.")
-        model = SAC.load(model_path, env=env)
+        model = SAC.load(str(model_path), env=env)
         model.tensorboard_log = tensorboard_dir
     else:
         print("[YENİ MODEL] Sıfırdan SAC modeli oluşturuluyor...")
@@ -502,7 +512,11 @@ def train_first_6_waypoints(path_coords, scale_factor, total_timesteps=350000):
             tensorboard_log=tensorboard_dir,
         )
 
-    checkpoint_callback = CheckpointCallback(save_freq=10000, save_path="./", name_prefix="sac_yedek")
+    checkpoint_callback = CheckpointCallback(
+        save_freq=10000,
+        save_path=str(MODELS_DIR),
+        name_prefix="sac_yedek",
+    )
 
     interrupted = False
     try:
@@ -517,15 +531,15 @@ def train_first_6_waypoints(path_coords, scale_factor, total_timesteps=350000):
                 progress_bar=False,
             )
             steps_done += batch
-            env.save("vec_normalize.pkl")
+            env.save(str(vec_norm_path))
         print("[OK] Eğitim başarıyla tamamlandı.")
     except KeyboardInterrupt:
         interrupted = True
         print("\n[DURDURULDU] Eğitim kullanıcı tarafından kesildi.")
     finally:
         print("[KAYDEDİLİYOR] Model ve çevre istatistikleri diske kaydediliyor...")
-        env.save("vec_normalize.pkl")
-        model.save("sac_rover")
+        env.save(str(vec_norm_path))
+        model.save(str(MODELS_DIR / "sac_rover"))
         print("[BAŞARILI] Kayıt işlemi tamamlandı.")
 
     return model, env, interrupted
@@ -534,8 +548,8 @@ def train_first_6_waypoints(path_coords, scale_factor, total_timesteps=350000):
 if __name__ == "__main__":
     try:
         print("[INIT] path_coords ve scale_factor diskten yükleniyor...")
-        path_coords = np.load("path_coords.npy")
-        scale_factor = float(np.load("scale_factor.npy"))
+        path_coords = np.load(DATA_DIR / "path_coords.npy")
+        scale_factor = float(np.load(DATA_DIR / "scale_factor.npy"))
 
         train_first_6_waypoints(path_coords, scale_factor, total_timesteps=350000)
     except KeyboardInterrupt:
