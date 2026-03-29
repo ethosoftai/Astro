@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🌙 Lunar Rover - 3D Mission Viewer</title>
+    <link rel="icon" href="data:," />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: "Segoe UI", sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #hud {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid rgba(0, 200, 255, 0.3);
+            border-radius: 12px;
+            padding: 16px 20px;
+            color: #ccc;
+            font-size: 13px;
+            backdrop-filter: blur(8px);
+            min-width: 260px;
+            z-index: 10;
+        }
+
+        #hud h2 {
+            color: #00d4ff;
+            font-size: 16px;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+
+        #hud .row {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            gap: 16px;
+        }
+
+        #hud .val {
+            color: #fff;
+            font-weight: bold;
+            text-align: right;
+        }
+
+        #hud .battery-bar {
+            height: 8px;
+            background: #222;
+            border-radius: 4px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+
+        #hud .battery-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 10px 20px;
+            color: #aaa;
+            font-size: 12px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            z-index: 10;
+            flex-wrap: wrap;
+        }
+
+        #controls button {
+            background: linear-gradient(135deg, #0088ff, #00ccff);
+            border: none;
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        #controls button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 12px rgba(0, 200, 255, 0.5);
+        }
+
+        #controls button.active {
+            background: linear-gradient(135deg, #ff4444, #ff8800);
+        }
+
+        #speed-slider {
+            width: 120px;
+            accent-color: #00ccff;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00d4ff;
+            font-size: 20px;
+            text-align: center;
+            z-index: 20;
+        }
+
+        #loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(0, 200, 255, 0.2);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            animation: spin 1s linear infinite;
+        }
+
+        #error-box {
+            position: absolute;
+            inset: 0;
+            display: none;
+            place-items: center;
+            background: rgba(0, 0, 0, 0.92);
+            color: #ffb3b3;
+            z-index: 30;
+            padding: 24px;
+            text-align: center;
+        }
+
+        #error-box .inner {
+            max-width: 700px;
+            border: 1px solid rgba(255, 90, 90, 0.35);
+            background: rgba(40, 0, 0, 0.35);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        #error-box h3 {
+            margin-bottom: 12px;
+            color: #ff6666;
+        }
+
+        #error-box code {
+            display: block;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #ffd6d6;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loading">
+        <div class="spinner"></div>
+        Ay Yüzeyi Yükleniyor...
+    </div>
+
+    <div id="error-box">
+        <div class="inner">
+            <h3>Veri yüklenemedi</h3>
+            <div id="error-text">Bilinmeyen hata.</div>
+            <code id="error-detail"></code>
+        </div>
+    </div>
+
+    <div id="hud" style="display:none;">
+        <h2>🌙 LUNAR ROVER TELEMETRY</h2>
+        <div class="row"><span>Episode:</span><span class="val" id="hud-episode">-</span></div>
+        <div class="row"><span>Step:</span><span class="val" id="hud-step">0 / 0</span></div>
+        <div class="row"><span>Position:</span><span class="val" id="hud-pos">-</span></div>
+        <div class="row"><span>Waypoints:</span><span class="val" id="hud-wp">-</span></div>
+        <div class="row"><span>Hazards:</span><span class="val" id="hud-hz">-</span></div>
+        <div class="row"><span>Battery:</span><span class="val" id="hud-bat">100%</span></div>
+        <div class="battery-bar">
+            <div class="battery-fill" id="bat-fill" style="width:100%; background:#00ff88;"></div>
+        </div>
+    </div>
+
+    <div id="controls" style="display:none;">
+        <button id="btn-play">▶ Oynat</button>
+        <button id="btn-reset">⏮ Başa Dön</button>
+        <span>Hız:</span>
+        <input type="range" id="speed-slider" min="1" max="20" value="5" />
+        <span id="speed-label">5x</span>
+        <button id="btn-follow" class="active">🎥 Takip</button>
+        <button id="btn-topdown">🗺 Harita</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from "three";
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+        let scene, camera, renderer, controls;
+        let roverMesh = null;
+        let roverTrailLine = null;
+        let pathLine = null;
+
+        let animFrame = 0;
+        let isPlaying = false;
+        let followMode = true;
+
+        let data = null;
+        let heightmap = null;
+
+        let worldCenter = new THREE.Vector3(0, 0, 0);
+        let worldRadius = 50;
+        let u2m = 1;
+
+        function showError(message, detail = "") {
+            document.getElementById("loading").style.display = "none";
+            const box = document.getElementById("error-box");
+            box.style.display = "grid";
+            document.getElementById("error-text").textContent = message;
+            document.getElementById("error-detail").textContent = detail || "";
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function getSafeTrajectoryLength() {
+            return Array.isArray(data?.trajectory) ? data.trajectory.length : 0;
+        }
+
+        function getCurrentFrameIndex() {
+            const len = getSafeTrajectoryLength();
+            if (len === 0) return 0;
+            return clamp(Math.floor(animFrame), 0, len - 1);
+        }
+
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+        async function loadJsonOrThrow(path, retries = 6) {
+            let lastErr = null;
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const url = `${path}?t=${Date.now()}-${i}`;
+                    const resp = await fetch(url, { cache: "no-store" });
+                    if (!resp.ok) {
+                        throw new Error(`${path} yüklenemedi: HTTP ${resp.status} ${resp.statusText}`);
+                    }
+
+                    const text = await resp.text();
+                    if (!text || !text.trim()) {
+                        throw new Error(`${path} boş içerik döndürdü.`);
+                    }
+                    return JSON.parse(text);
+                } catch (err) {
+                    lastErr = err;
+                    const msg = String(err?.message || err);
+                    const isRetryable =
+                        msg.includes("Unexpected end of JSON input") ||
+                        msg.includes("NetworkError") ||
+                        msg.includes("Failed to fetch") ||
+                        msg.includes("boş içerik");
+
+                    if (!isRetryable || i === retries - 1) {
+                        break;
+                    }
+                    await sleep(120 * (i + 1));
+                }
+            }
+            throw lastErr || new Error(`${path} yüklenemedi.`);
+        }
+
+        async function loadData() {
+            try {
+                const [roverData, hmData] = await Promise.all([
+                    loadJsonOrThrow("rover_episode_data.json"),
+                    loadJsonOrThrow("heightmap.json")
+                ]);
+
+                if (!roverData || !Array.isArray(roverData.path) || roverData.path.length < 2) {
+                    throw new Error("rover_episode_data.json içinde geçerli 'path' bulunamadı.");
+                }
+
+                if (!Array.isArray(roverData.trajectory) || roverData.trajectory.length < 1) {
+                    throw new Error("rover_episode_data.json içinde geçerli 'trajectory' bulunamadı.");
+                }
+
+                if (!Array.isArray(roverData.hazards)) {
+                    roverData.hazards = [];
+                }
+
+                if (
+                    !hmData ||
+                    typeof hmData.width !== "number" ||
+                    typeof hmData.height !== "number" ||
+                    !Array.isArray(hmData.values) ||
+                    hmData.values.length !== hmData.height
+                ) {
+                    throw new Error("heightmap.json formatı geçersiz.");
+                }
+
+                data = roverData;
+                heightmap = hmData;
+
+                document.getElementById("loading").style.display = "none";
+                document.getElementById("hud").style.display = "block";
+                document.getElementById("controls").style.display = "flex";
+                document.getElementById("hud-episode").textContent = String(data.episode ?? "-");
+                document.getElementById("hud-wp").textContent = String(data.path.length);
+                document.getElementById("hud-hz").textContent = String(data.hazards.length);
+
+                await init();
+                resetAnim();
+                animate();
+            } catch (err) {
+                console.error(err);
+                showError("Dosyalar yüklenemedi.", err?.message || String(err));
+            }
+        }
+
+        function sampleHeightNearest(row, col) {
+            const r = clamp(Math.round(row), 0, heightmap.height - 1);
+            const c = clamp(Math.round(col), 0, heightmap.width - 1);
+            return heightmap.values[r][c];
+        }
+
+        function makeHeightTexture() {
+            const hmWidth = heightmap.width;
+            const hmHeight = heightmap.height;
+            const texData = new Uint8Array(hmWidth * hmHeight * 3);
+
+            let ptr = 0;
+            for (let row = 0; row < hmHeight; row++) {
+                for (let col = 0; col < hmWidth; col++) {
+                    const h = clamp(heightmap.values[row][col], -1, 1);
+                    const g = Math.round(((h + 1.0) * 0.5) * 255);
+                    texData[ptr++] = g;
+                    texData[ptr++] = g;
+                    texData[ptr++] = g;
+                }
+            }
+
+            const tex = new THREE.DataTexture(texData, hmWidth, hmHeight, THREE.RGBFormat);
+            tex.needsUpdate = true;
+            tex.flipY = true;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.wrapS = THREE.ClampToEdgeWrapping;
+            tex.wrapT = THREE.ClampToEdgeWrapping;
+            tex.minFilter = THREE.LinearFilter;
+            tex.magFilter = THREE.LinearFilter;
+            return tex;
+        }
+
+        async function createHeightmapGround() {
+            const hmWidth = heightmap.width;
+            const hmHeight = heightmap.height;
+
+            const groundSizeX = Math.max(200, worldRadius * 2.2);
+            const groundSizeZ = Math.max(200, worldRadius * 2.2);
+
+            const segX = hmWidth - 1;
+            const segZ = hmHeight - 1;
+
+            const groundGeo = new THREE.PlaneGeometry(groundSizeX, groundSizeZ, segX, segZ);
+            groundGeo.rotateX(-Math.PI / 2);
+
+            const posAttr = groundGeo.attributes.position;
+
+            const heightScale = 35.0;
+
+            for (let row = 0; row < hmHeight; row++) {
+                for (let col = 0; col < hmWidth; col++) {
+                    const vertexIndex = row * hmWidth + col;
+                    const h = clamp(heightmap.values[row][col], -1, 1);
+                    const y = h * heightScale;
+                    posAttr.setY(vertexIndex, y);
+                }
+            }
+
+            groundGeo.computeVertexNormals();
+
+            const topoTexture = makeHeightTexture();
+
+            const groundMat = new THREE.MeshStandardMaterial({
+                map: topoTexture,
+                color: 0xffffff,
+                roughness: 0.85,
+                metalness: 0.0
+            });
+
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.receiveShadow = true;
+            ground.position.copy(worldCenter);
+            scene.add(ground);
+        }
+
+        async function init() {
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.6;
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x101820);
+            scene.fog = new THREE.FogExp2(0x101820, 0.0012);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000000);
+            camera.position.set(0, 80, 120);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.08;
+            controls.maxPolarAngle = Math.PI * 0.495;
+            controls.target.set(0, 0, 0);
+
+            const sun = new THREE.DirectionalLight(0xffffff, 2.8);
+            sun.position.set(300, 500, 200);
+            sun.castShadow = true;
+            scene.add(sun);
+
+            scene.add(new THREE.AmbientLight(0x8a9bb8, 1.15));
+            scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x6a5a48, 0.9));
+
+            const starGeo = new THREE.BufferGeometry();
+            const starVerts = [];
+            for (let i = 0; i < 2000; i++) {
+                starVerts.push(
+                    (Math.random() - 0.5) * 300000,
+                    Math.random() * 150000 + 20000,
+                    (Math.random() - 0.5) * 300000
+                );
+            }
+            starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starVerts, 3));
+            scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 120 })));
+
+            const m2u = Number(data.m2u) || (1.0 / (Number(data.scale_factor) * 1000.0));
+            u2m = 1.0 / m2u;
+
+            const allPoints = [...data.path, ...data.trajectory];
+            const allX = allPoints.map(p => p[0]);
+            const allY = allPoints.map(p => p[1]);
+
+            const cx = (Math.min(...allX) + Math.max(...allX)) / 2;
+            const cy = (Math.min(...allY) + Math.max(...allY)) / 2;
+
+            function toWorld(px, py) {
+                return new THREE.Vector3((px - cx) * u2m, 0, (py - cy) * u2m);
+            }
+
+            window._toWorld = toWorld;
+
+            const pathWorldPoints = data.path.map(p => toWorld(p[0], p[1]));
+            const trajWorldPoints = data.trajectory.map(p => toWorld(p[0], p[1]));
+            const combinedWorld = [...pathWorldPoints, ...trajWorldPoints];
+
+            const box = new THREE.Box3().setFromPoints(combinedWorld);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            box.getCenter(worldCenter);
+
+            worldRadius = Math.max(size.x, size.z, 50) * 0.65;
+
+            await createHeightmapGround();
+
+            const pathPts = pathWorldPoints.map(v => v.clone().setY(0.8));
+            const pathGeo = new THREE.BufferGeometry().setFromPoints(pathPts);
+            pathLine = new THREE.Line(
+                pathGeo,
+                new THREE.LineDashedMaterial({
+                    color: 0x0088ff,
+                    dashSize: Math.max(10, worldRadius * 0.02),
+                    gapSize: Math.max(5, worldRadius * 0.01)
+                })
+            );
+            pathLine.computeLineDistances();
+            scene.add(pathLine);
+
+            data.path.forEach((p, i) => {
+                const w = toWorld(p[0], p[1]);
+                const markerHeight = Math.max(8, worldRadius * 0.03);
+                const markerRadius = Math.max(1.5, worldRadius * 0.005);
+
+                const markerGeo = new THREE.CylinderGeometry(markerRadius, markerRadius, markerHeight, 10);
+                const markerMat = new THREE.MeshStandardMaterial({
+                    color: i === 0 ? 0x00ff00 : (i === data.path.length - 1 ? 0xff0000 : 0x00ccff),
+                    emissive: i === 0 ? 0x004400 : (i === data.path.length - 1 ? 0x440000 : 0x002244)
+                });
+
+                const marker = new THREE.Mesh(markerGeo, markerMat);
+                marker.position.copy(w).setY(markerHeight * 0.5 + 1.0);
+                scene.add(marker);
+            });
+
+            data.hazards.forEach(hz => {
+                if (!Array.isArray(hz) || hz.length < 3) return;
+
+                const pos = toWorld(hz[0], hz[1]);
+                const radius = Math.max(0.5, hz[2] * u2m);
+
+                const rockGeo = new THREE.DodecahedronGeometry(radius, 1);
+                const rockPos = rockGeo.attributes.position;
+
+                for (let i = 0; i < rockPos.count; i++) {
+                    const v = new THREE.Vector3(
+                        rockPos.getX(i),
+                        rockPos.getY(i),
+                        rockPos.getZ(i)
+                    );
+                    v.multiplyScalar(0.8 + Math.random() * 0.4);
+                    rockPos.setXYZ(i, v.x, v.y, v.z);
+                }
+
+                rockGeo.computeVertexNormals();
+
+                const rockMat = new THREE.MeshStandardMaterial({
+                    color: 0x8b6914,
+                    roughness: 0.9,
+                    metalness: 0.1,
+                    flatShading: true
+                });
+
+                const rock = new THREE.Mesh(rockGeo, rockMat);
+                rock.position.copy(pos).setY(radius * 0.5 + 0.2);
+                rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+                rock.castShadow = true;
+                scene.add(rock);
+            });
+
+            const roverGroup = new THREE.Group();
+
+            const bodyGeo = new THREE.BoxGeometry(3.0, 1.2, 2.0);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.65, roughness: 0.2 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 1.0;
+            body.castShadow = true;
+            roverGroup.add(body);
+
+            const panelGeo = new THREE.BoxGeometry(3.6, 0.1, 2.8);
+            const panelMat = new THREE.MeshStandardMaterial({ color: 0x3355ff, metalness: 0.9, roughness: 0.12 });
+            const panel = new THREE.Mesh(panelGeo, panelMat);
+            panel.position.y = 1.6;
+            panel.castShadow = true;
+            roverGroup.add(panel);
+
+            const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.4, 12);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+
+            [
+                [-1.2, 0.45, 1.2],
+                [1.2, 0.45, 1.2],
+                [-1.2, 0.45, -1.2],
+                [1.2, 0.45, -1.2]
+            ].forEach(p => {
+                const wh = new THREE.Mesh(wheelGeo, wheelMat);
+                wh.rotation.z = Math.PI / 2;
+                wh.position.set(...p);
+                wh.castShadow = true;
+                roverGroup.add(wh);
+            });
+
+            const antGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.5, 4);
+            const ant = new THREE.Mesh(antGeo, new THREE.MeshStandardMaterial({ color: 0xcccccc }));
+            ant.position.set(-1.0, 2.2, 0);
+            roverGroup.add(ant);
+
+            const dishGeo = new THREE.SphereGeometry(0.5, 12, 12, 0, Math.PI);
+            const dish = new THREE.Mesh(
+                dishGeo,
+                new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.9, roughness: 0.2 })
+            );
+            dish.position.set(-1.0, 3.2, 0);
+            dish.rotation.x = -Math.PI / 2;
+            roverGroup.add(dish);
+
+            const headlight = new THREE.PointLight(0xffffff, 1.2, 35);
+            headlight.position.set(2.0, 1.2, 0);
+            roverGroup.add(headlight);
+
+            roverMesh = roverGroup;
+            const startPos = toWorld(data.trajectory[0][0], data.trajectory[0][1]);
+            roverMesh.position.copy(startPos).setY(1.2);
+            scene.add(roverMesh);
+
+            const maxTrailPts = data.trajectory.length;
+            const trailGeo = new THREE.BufferGeometry();
+            trailGeo.setAttribute(
+                "position",
+                new THREE.Float32BufferAttribute(new Float32Array(maxTrailPts * 3), 3)
+            );
+            trailGeo.setDrawRange(0, 0);
+
+            roverTrailLine = new THREE.Line(
+                trailGeo,
+                new THREE.LineBasicMaterial({ color: 0x00ff66 })
+            );
+            scene.add(roverTrailLine);
+
+            window.addEventListener("resize", onResize);
+
+            document.getElementById("btn-play").addEventListener("click", togglePlay);
+            document.getElementById("btn-reset").addEventListener("click", resetAnim);
+
+            document.getElementById("btn-follow").addEventListener("click", () => {
+                followMode = true;
+                document.getElementById("btn-follow").classList.add("active");
+                document.getElementById("btn-topdown").classList.remove("active");
+            });
+
+            document.getElementById("btn-topdown").addEventListener("click", () => {
+                followMode = false;
+                document.getElementById("btn-follow").classList.remove("active");
+                document.getElementById("btn-topdown").classList.add("active");
+                setTopDownCamera();
+            });
+
+            document.getElementById("speed-slider").addEventListener("input", e => {
+                document.getElementById("speed-label").textContent = `${e.target.value}x`;
+            });
+        }
+
+        function onResize() {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function setTopDownCamera() {
+            const height = Math.max(80, worldRadius * 1.8);
+            camera.position.set(worldCenter.x, height, worldCenter.z + 0.001);
+            controls.target.copy(worldCenter);
+            camera.lookAt(worldCenter);
+        }
+
+        function togglePlay() {
+            if (!data) return;
+            isPlaying = !isPlaying;
+            document.getElementById("btn-play").textContent = isPlaying ? "⏸ Durdur" : "▶ Oynat";
+        }
+
+        function resetAnim() {
+            animFrame = 0;
+            isPlaying = false;
+            document.getElementById("btn-play").textContent = "▶ Oynat";
+
+            if (roverTrailLine) {
+                const trailPos = roverTrailLine.geometry.attributes.position;
+                for (let i = 0; i < trailPos.count; i++) {
+                    trailPos.setXYZ(i, 0, 0, 0);
+                }
+                trailPos.needsUpdate = true;
+                roverTrailLine.geometry.setDrawRange(0, 0);
+            }
+
+            updateRover(0);
+
+            if (!followMode) {
+                setTopDownCamera();
+            }
+        }
+
+        function updateBatteryHUD(idx) {
+            const len = getSafeTrajectoryLength();
+            const denom = Math.max(len - 1, 1);
+            const batPct = Math.max(0, 100 - (idx / denom) * 60);
+
+            document.getElementById("hud-bat").textContent = `${batPct.toFixed(0)}%`;
+
+            const fill = document.getElementById("bat-fill");
+            fill.style.width = `${batPct}%`;
+            fill.style.background = batPct > 40 ? "#00ff88" : (batPct > 15 ? "#ffaa00" : "#ff3333");
+        }
+
+        function updateRover(idx) {
+            if (!data || !roverMesh || !roverTrailLine) return;
+
+            const len = getSafeTrajectoryLength();
+            if (len === 0) return;
+
+            idx = clamp(Math.floor(idx), 0, len - 1);
+
+            const p = data.trajectory[idx];
+            const worldPos = window._toWorld(p[0], p[1]);
+            roverMesh.position.copy(worldPos).setY(1.2);
+
+            if (idx < len - 1) {
+                const next = data.trajectory[idx + 1];
+                const nextW = window._toWorld(next[0], next[1]);
+                const dx = nextW.x - worldPos.x;
+                const dz = nextW.z - worldPos.z;
+
+                if (Math.abs(dx) > 1e-6 || Math.abs(dz) > 1e-6) {
+                    roverMesh.rotation.y = Math.atan2(dx, dz);
+                }
+            }
+
+            const trailPos = roverTrailLine.geometry.attributes.position;
+            for (let i = 0; i <= idx; i++) {
+                const tp = data.trajectory[i];
+                const tw = window._toWorld(tp[0], tp[1]);
+                trailPos.setXYZ(i, tw.x, 0.15, tw.z);
+            }
+            trailPos.needsUpdate = true;
+            roverTrailLine.geometry.setDrawRange(0, idx + 1);
+
+            document.getElementById("hud-step").textContent = `${idx + 1} / ${len}`;
+            document.getElementById("hud-pos").textContent = `(${p[0].toFixed(6)}, ${p[1].toFixed(6)})`;
+
+            updateBatteryHUD(idx);
+
+            if (followMode) {
+                const followDistance = Math.max(8, worldRadius * 0.05);
+                const followHeight = Math.max(5, worldRadius * 0.035);
+
+                const forward = new THREE.Vector3(Math.sin(roverMesh.rotation.y), 0, Math.cos(roverMesh.rotation.y));
+                const offset = forward.clone().multiplyScalar(-followDistance);
+                offset.y = followHeight;
+
+                const desiredCamPos = worldPos.clone().add(offset);
+                camera.position.lerp(desiredCamPos, 0.08);
+                controls.target.lerp(worldPos.clone().setY(1.5), 0.08);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (controls) controls.update();
+
+            if (isPlaying && data) {
+                const speed = Number(document.getElementById("speed-slider").value) || 1;
+                animFrame += speed;
+
+                const len = getSafeTrajectoryLength();
+                if (len > 0 && animFrame >= len - 1) {
+                    animFrame = len - 1;
+                    isPlaying = false;
+                    document.getElementById("btn-play").textContent = "▶ Oynat";
+                }
+
+                updateRover(getCurrentFrameIndex());
+            }
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        loadData();
+    </script>
+</body>
+
+</html>
